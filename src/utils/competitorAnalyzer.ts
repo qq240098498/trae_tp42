@@ -1,4 +1,4 @@
-import type { Competitor, ComparisonMetric } from '@/data/competitors';
+import type { Competitor, ComparisonMetric, ComparisonSummary } from '@/data/competitors';
 import { competitors, detectCompetitorsFromText, findCompetitorByKeyword } from '@/data/competitors';
 
 export interface ScriptGenerationOptions {
@@ -24,6 +24,7 @@ export interface GeneratedComparisonScript {
   keyTalkingPoints: string[];
   competitorName: string;
   competitorId: string;
+  summary: ComparisonSummary;
 }
 
 export function analyzeCompetitorSentiment(
@@ -190,6 +191,7 @@ export function generateComparisonScript(
     keyTalkingPoints: keyTalkingPoints.slice(0, 4),
     competitorName: competitor.name,
     competitorId: competitor.id,
+    summary: competitor.comparisonSummary,
   };
 }
 

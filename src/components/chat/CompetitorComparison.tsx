@@ -14,9 +14,13 @@ import {
   DollarSign,
   Layers,
   Info,
+  Target,
+  ThumbsUp,
+  HelpCircle,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { Competitor, DimensionComparison, ComparisonMetric } from '@/data/competitors';
+import type { Competitor, DimensionComparison, ComparisonMetric, ComparisonSummary } from '@/data/competitors';
 import type { GeneratedComparisonScript } from '@/utils/competitorAnalyzer';
 import { calculateOverallScore } from '@/utils/competitorAnalyzer';
 
@@ -204,6 +208,244 @@ function DimensionSection({ dimension, index }: { dimension: DimensionComparison
   );
 }
 
+function ComparisonSummarySection({ summary, competitorName }: { summary: ComparisonSummary; competitorName: string }) {
+  const [expanded, setExpanded] = useState(true);
+  const [activeTab, setActiveTab] = useState<'overview' | 'strengths' | 'fit' | 'decision'>('overview');
+
+  const importanceColor = (importance: 'critical' | 'high' | 'medium') => {
+    switch (importance) {
+      case 'critical':
+        return 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300';
+      case 'high':
+        return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300';
+      case 'medium':
+        return 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300';
+    }
+  };
+
+  const importanceLabel = (importance: 'critical' | 'high' | 'medium') => {
+    switch (importance) {
+      case 'critical':
+        return '关键';
+      case 'high':
+        return '重要';
+      case 'medium':
+        return '一般';
+    }
+  };
+
+  const tabs = [
+    { key: 'overview' as const, label: '总体结论', icon: Sparkles },
+    { key: 'strengths' as const, label: '双方优势', icon: ThumbsUp },
+    { key: 'fit' as const, label: '适用场景', icon: Target },
+    { key: 'decision' as const, label: '决策要点', icon: HelpCircle },
+  ];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.4 }}
+      className="rounded-xl border border-gradient-to-r from-indigo-200 to-purple-200 dark:from-indigo-800/50 dark:to-purple-800/50 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/20 overflow-hidden"
+    >
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between p-3.5 hover:bg-white/30 dark:hover:bg-slate-800/30 transition-colors"
+      >
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-500 text-white shadow-sm">
+            <BarChart3 className="w-4 h-4" />
+          </div>
+          <div className="text-left">
+            <h5 className="font-bold text-sm text-slate-800 dark:text-slate-100">对比总结</h5>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+              综合分析，客观呈现，帮助您做出明智选择
+            </p>
+          </div>
+        </div>
+        {expanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+      </button>
+
+      {expanded && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          className="px-3.5 pb-3.5"
+        >
+          <div className="flex gap-1 mb-3 p-1 rounded-lg bg-white/60 dark:bg-slate-800/60">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md text-[11px] font-medium transition-all',
+                    activeTab === tab.key
+                      ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                  )}
+                >
+                  <Icon className="w-3 h-3" />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-3 border border-slate-200 dark:border-slate-700">
+            {activeTab === 'overview' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="space-y-3"
+              >
+                <div className="flex items-start gap-2">
+                  <Sparkles className="w-4 h-4 text-indigo-500 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1.5">Executive Summary</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                      {summary.executiveSummary}
+                    </p>
+                  </div>
+                </div>
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-700">
+                  <div className="flex items-center gap-2">
+                    <div className="px-2 py-1 rounded-md bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-[11px] font-bold">
+                      💡 一句话总结
+                    </div>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                      {summary.quickTakeaway}
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'strengths' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="space-y-4"
+              >
+                <div>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+                    <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">我方核心优势</p>
+                  </div>
+                  <div className="space-y-2">
+                    {summary.ourStrengths.map((item, i) => (
+                      <motion.div
+                        key={i}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.08 }}
+                        className="flex items-start gap-2 p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/50"
+                      >
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className="text-[11px] font-semibold text-slate-800 dark:text-slate-100">{item.dimension}</span>
+                            <span className={cn('px-1.5 py-0.5 rounded text-[10px] font-bold', importanceColor(item.importance))}>
+                              {importanceLabel(item.importance)}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">{item.description}</p>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-700">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <BarChart3 className="w-3.5 h-3.5 text-slate-500" />
+                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">{competitorName}的优势领域</p>
+                    <span className="text-[10px] text-slate-400">（客观呈现，不贬低对手）</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {summary.competitorStrengths.map((item, i) => (
+                      <div key={i} className="flex items-start gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-700/50 border border-slate-100 dark:border-slate-600">
+                        <BarChart3 className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
+                        <div>
+                          <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">{item.dimension}：</span>
+                          <span className="text-[11px] text-slate-600 dark:text-slate-300">{item.description}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'fit' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="grid grid-cols-2 gap-3"
+              >
+                <div>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                    <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">推荐选择我方</p>
+                  </div>
+                  <ul className="space-y-1.5">
+                    {summary.fitForUs.map((item, i) => (
+                      <li key={i} className="flex items-start gap-1.5 text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                        <span className="text-emerald-500 font-bold mt-0.5">✓</span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Target className="w-3.5 h-3.5 text-slate-500" />
+                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">推荐选择{competitorName}</p>
+                  </div>
+                  <ul className="space-y-1.5">
+                    {summary.fitForThem.map((item, i) => (
+                      <li key={i} className="flex items-start gap-1.5 text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                        <span className="text-slate-400 font-bold mt-0.5">→</span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'decision' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="space-y-2"
+              >
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2">
+                  向客户提出以下关键问题，帮助其理清需求，做出最适合的选择：
+                </p>
+                {summary.keyDecisionPoints.map((point, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.08 }}
+                    className="flex items-start gap-2 p-2.5 rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border border-blue-100 dark:border-blue-900/50"
+                  >
+                    <HelpCircle className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
+                    <p className="text-[12px] font-medium text-slate-700 dark:text-slate-200 leading-relaxed">
+                      {point}
+                    </p>
+                  </motion.div>
+                ))}
+              </motion.div>
+            )}
+          </div>
+        </motion.div>
+      )}
+    </motion.div>
+  );
+}
+
 export default function CompetitorComparison({ competitor, script, opening }: CompetitorComparisonProps) {
   const [copied, setCopied] = useState(false);
   const overallScore = calculateOverallScore(competitor);
@@ -286,6 +528,12 @@ export default function CompetitorComparison({ competitor, script, opening }: Co
             <DimensionSection key={dim.dimension} dimension={dim} index={i} />
           ))}
         </div>
+
+        {competitor.comparisonSummary && (
+          <div className="px-4 pb-4">
+            <ComparisonSummarySection summary={competitor.comparisonSummary} competitorName={competitor.name} />
+          </div>
+        )}
 
         {competitor.customerReferences && competitor.customerReferences.length > 0 && (
           <div className="px-4 pb-4">

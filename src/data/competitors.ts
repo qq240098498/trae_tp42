@@ -23,6 +23,23 @@ export interface DiffPoint {
   script: string;
 }
 
+export interface ComparisonSummary {
+  executiveSummary: string;
+  ourStrengths: {
+    dimension: string;
+    description: string;
+    importance: 'critical' | 'high' | 'medium';
+  }[];
+  competitorStrengths: {
+    dimension: string;
+    description: string;
+  }[];
+  fitForUs: string[];
+  fitForThem: string[];
+  keyDecisionPoints: string[];
+  quickTakeaway: string;
+}
+
 export interface Competitor {
   id: string;
   name: string;
@@ -33,6 +50,7 @@ export interface Competitor {
   targetCustomer: string;
   diffPoints: DiffPoint[];
   comparisonMatrix: DimensionComparison[];
+  comparisonSummary: ComparisonSummary;
   customerReferences?: {
     industry: string;
     count: string;
@@ -123,6 +141,40 @@ export const competitors: Competitor[] = [
         neutralScript: 'Salesforce在全球范围内有成熟的服务体系，但国内支持确实不是它的强项。如果您重视服务响应速度和本土化支持，我们会是更合适的选择。',
       },
     ],
+    comparisonSummary: {
+      executiveSummary: 'Salesforce作为全球CRM行业的领导者，在国际化能力和功能完整性方面确实有深厚积累，但对于以国内业务为主的中国企业来说，其高昂的总拥有成本、较弱的本土化支持以及数据合规风险是需要重点考量的问题。我们的产品在本土生态适配、服务响应速度、整体性价比方面有显著优势，能够帮助企业以更低成本实现更好的业务增长效果。',
+      ourStrengths: [
+        { dimension: '本土生态集成', description: '微信、企业微信、钉钉原生集成，国内社媒全渠道覆盖', importance: 'critical' },
+        { dimension: '数据合规安全', description: '数据全量国内存储，符合等保三级及各项行业法规要求', importance: 'critical' },
+        { dimension: '总拥有成本', description: '3年TCO约为Salesforce的1/3，无隐藏费用', importance: 'high' },
+        { dimension: '本土服务团队', description: '500+国内专业服务人员，2小时快速响应', importance: 'high' },
+        { dimension: '实施上线速度', description: '2-4周标准上线，业务价值快速体现', importance: 'medium' },
+      ],
+      competitorStrengths: [
+        { dimension: '全球化能力', description: '全球节点布局，多语言多币种支持完善' },
+        { dimension: '功能完整度', description: '20年行业积累，功能覆盖非常全面' },
+        { dimension: '生态系统', description: 'AppExchange应用市场，第三方应用丰富' },
+      ],
+      fitForUs: [
+        '以国内市场为主的企业',
+        '重视数据主权和合规要求的金融、医疗等行业',
+        '希望快速上线、快速见效的成长型企业',
+        '需要深度集成微信等国内社媒渠道的企业',
+      ],
+      fitForThem: [
+        '总部在海外、业务遍布全球的跨国企业',
+        '对海外市场拓展有强烈需求的外贸企业',
+        '预算充足且需要复杂定制化开发的超大型企业',
+      ],
+      keyDecisionPoints: [
+        '您的核心市场在国内还是海外？国内业务占比是否超过70%？',
+        '是否有金融、医疗等强监管行业的合规要求？',
+        '是否需要与微信、钉钉等国内应用深度集成？',
+        '项目预算是否能承受3年500万以上的总投入？',
+        '能否接受3-6个月的实施周期和英文技术支持？',
+      ],
+      quickTakeaway: '如果您的主战场在国内，我们能以1/3的成本提供更好的本土化体验和服务；如果您是全球化企业，Salesforce的国际能力值得投入。',
+    },
     customerReferences: [
       { industry: '制造业', count: '200+', description: '离散制造、流程制造等细分行业' },
       { industry: '零售业', count: '150+', description: '连锁零售、品牌电商等场景' },
@@ -211,6 +263,40 @@ export const competitors: Competitor[] = [
         neutralScript: '钉钉由于用户量级大，不可能提供1对1的专属服务，但它的产品设计确实简单易用，大部分问题通过自助方式就能解决。如果您希望有专人服务、快速响应，我们的服务模式会更匹配。',
       },
     ],
+    comparisonSummary: {
+      executiveSummary: '钉钉作为国民级协同办公平台，在基础沟通、考勤审批等通用场景有不可替代的优势，但它的定位是"协同工具"而非"业务增长平台"。对于希望通过数字化驱动销售增长、提升客户运营效率的企业来说，钉钉的轻量级业务模块难以支撑复杂的销售流程管理、营销自动化和客户服务需求。我们的产品与钉钉形成互补——用钉钉做内部协同沟通，用我们做业务增长管理，是很多企业的最佳实践。',
+      ourStrengths: [
+        { dimension: '销售管理深度', description: '完整CRM+销售漏斗+提成计算，支持复杂销售流程', importance: 'critical' },
+        { dimension: '营销自动化', description: '全渠道营销旅程编排，A/B测试，ROI分析', importance: 'critical' },
+        { dimension: '数据分析能力', description: '内置专业BI，多维度钻取，AI智能归因', importance: 'high' },
+        { dimension: '系统开放性', description: '200+标准API，支持与各类业务系统深度打通', importance: 'high' },
+        { dimension: '客户服务一体化', description: '智能客服+工单系统+知识库一体化', importance: 'medium' },
+      ],
+      competitorStrengths: [
+        { dimension: 'IM沟通体验', description: '亿级用户验证的即时通讯体验，稳定可靠' },
+        { dimension: '用户基数大', description: '国民级应用，员工接受度高，学习成本低' },
+        { dimension: '基础功能免费', description: '沟通、考勤、基础审批等功能永久免费', },
+      ],
+      fitForUs: [
+        '希望建立精细化销售管理体系的企业',
+        '需要做营销自动化和客户分层运营的企业',
+        '对数据报表和经营分析有较高要求的企业',
+        '需要对接多套业务系统、打通数据的企业',
+      ],
+      fitForThem: [
+        '50人以下、仅需基础沟通协作的小微企业',
+        '核心诉求是考勤打卡、简单审批的传统企业',
+        '暂无销售管理和客户运营需求的企业',
+      ],
+      keyDecisionPoints: [
+        '您目前的核心痛点是内部沟通协作，还是业务增长和客户管理？',
+        '是否需要管理销售漏斗、做客户分层、计算销售提成？',
+        '是否需要做营销活动ROI分析、多维度业绩报表？',
+        '现在的销售数据是分散在Excel和各个平台，还是已经系统化管理？',
+        '是否需要对接ERP、电商、财务等多套业务系统？',
+      ],
+      quickTakeaway: '钉钉解决"人和人沟通"的问题，我们解决"业务怎么增长"的问题。两者不是替代关系，而是最佳拍档。',
+    },
     customerReferences: [
       { industry: '制造业', count: '300+', description: '生产管理、供应链协同场景' },
       { industry: '零售业', count: '250+', description: '门店管理、会员运营场景' },
@@ -299,6 +385,40 @@ export const competitors: Competitor[] = [
         neutralScript: '飞书的产品设计确实很简洁优雅，互联网团队的小伙伴上手很快，很多时候不需要太多培训就能用起来。对于需要手把手服务、行业定制化需求多的传统企业，我们的服务体系会更合适。',
       },
     ],
+    comparisonSummary: {
+      executiveSummary: '飞书作为字节跳动出品的协同办公平台，在文档协作、OKR管理方面表现出色，尤其受到互联网企业的青睐。但它的产品基因偏互联网文化，对于制造、零售、医疗等传统行业的业务场景适配不足，销售管理、营销自动化等业务功能起步较晚。我们的产品与飞书的关系是"协作+业务"的组合：飞书管内部协作和知识管理，我们管前端销售、营销、客户服务等业务增长场景，双方各有所长、互补共赢。',
+      ourStrengths: [
+        { dimension: '垂直行业方案', description: '10+行业深度解决方案，制造/零售/医疗等行业模板开箱即用', importance: 'critical' },
+        { dimension: '销售管理能力', description: '完整CRM+销售漏斗+提成计算，B2B复杂销售流程专家', importance: 'critical' },
+        { dimension: '性价比优势', description: '统一单价无阶梯，500人团队年省约40万', importance: 'high' },
+        { dimension: '传统行业服务经验', description: '懂传统业务的顾问团队，可提供驻场实施服务', importance: 'high' },
+        { dimension: '数据处理性能', description: '千万级数据查询<5秒，专业OLAP引擎', importance: 'medium' },
+      ],
+      competitorStrengths: [
+        { dimension: '文档协作体验', description: '多维表格、实时协作体验行业领先', },
+        { dimension: 'OKR管理理念', description: 'OKR思想融入产品设计，适合互联网文化', },
+        { dimension: '产品设计理念', description: '简洁优雅的设计语言，用户体验优秀', },
+      ],
+      fitForUs: [
+        '制造、零售、医疗、建筑等传统行业企业',
+        '以销售驱动、需要精细化客户管理的企业',
+        '团队规模较大（500人+）、希望控制成本的企业',
+        '需要行业定制化解决方案和贴身服务的企业',
+      ],
+      fitForThem: [
+        '互联网、科技、文创等知识密集型企业',
+        '团队文化扁平开放、以OKR为核心管理方式的企业',
+        '200人以下、核心诉求是协作而非业务管理的团队',
+      ],
+      keyDecisionPoints: [
+        '您所在的行业是互联网/科技，还是制造/零售/医疗等传统行业？',
+        '公司的核心管理方式是OKR驱动，还是销售目标和业绩驱动？',
+        '是否需要管理复杂的销售流程、计算销售提成、做客户分层运营？',
+        '团队规模有多大？是否在意人数阶梯定价带来的成本上升？',
+        '是否需要行业特定的解决方案和驻场实施服务？',
+      ],
+      quickTakeaway: '互联网团队选飞书做协作，传统企业选我们做业务。如果两者都需要，完全可以飞书+我们双剑合璧。',
+    },
     customerReferences: [
       { industry: '制造业', count: '280+', description: '数字化转型、智能工厂场景' },
       { industry: '医疗健康', count: '120+', description: '医院信息化、医药营销场景' },
@@ -387,6 +507,40 @@ export const competitors: Competitor[] = [
         neutralScript: '用友的服务体系覆盖全国，在很多三四线城市都有合作伙伴，这是它的优势。但如果您重视需求的快速响应和持续的产品迭代，我们会更匹配。',
       },
     ],
+    comparisonSummary: {
+      executiveSummary: '用友作为国内老牌ERP厂商，在财务核算、生产制造等传统企业管理领域有30年的深厚积累，是很多大型集团企业财务系统的首选。但它的产品架构基于传统软件时代演进而来，包袱较重，在销售管理、营销自动化等前端业务场景的功能深度和用户体验方面与新一代SaaS产品存在代际差异。我们与用友的关系更多是"前后台配合"——用友管后端财务和生产，我们管前端销售、营销和客户运营，数据打通、各司其职，是很多企业的理想组合。',
+      ourStrengths: [
+        { dimension: '用户体验', description: '消费级产品体验，新员工半天上手，界面简洁现代', importance: 'critical' },
+        { dimension: '敏捷迭代速度', description: '每两周一个版本，客户需求快速响应上线', importance: 'critical' },
+        { dimension: '云原生架构', description: '秒级弹性扩容、不停机热升级、移动端优先', importance: 'high' },
+        { dimension: '总拥有成本', description: '5年TCO节省约60%，无需服务器和专职运维', importance: 'high' },
+        { dimension: '销售营销一体化', description: '营销→线索→商机→回款全链路闭环', importance: 'medium' },
+      ],
+      competitorStrengths: [
+        { dimension: '财务ERP深度', description: '30年积累的财务核算能力，国内首屈一指', },
+        { dimension: '生产制造模块', description: 'MRP、生产计划等制造业核心模块成熟', },
+        { dimension: '大型集团客户基础', description: '国内大型企业客户覆盖面广，品牌认知度高', },
+      ],
+      fitForUs: [
+        '希望快速上线、快速看到业务效果的成长型企业',
+        '前端销售、营销、服务等业务部门主导的数字化项目',
+        '重视产品体验和员工采纳率的企业',
+        '已经有财务ERP但需要升级前端业务系统的企业',
+      ],
+      fitForThem: [
+        '核心诉求是财务核算、成本管控的集团型企业',
+        '生产制造等后端供应链管理为核心的企业',
+        '倾向于私有化部署、有充足IT预算的大型企业',
+      ],
+      keyDecisionPoints: [
+        '您这次选型的核心是财务/生产等后端管理，还是销售/营销等前端业务增长？',
+        '是否能接受3-6个月的实施周期和复杂的员工培训？',
+        '公司是否有专职的IT运维团队来维护服务器和系统升级？',
+        '前端业务部门的需求是否能被传统ERP的轻量模块满足？',
+        '是否愿意为了"大而全"牺牲用户体验和迭代速度？',
+      ],
+      quickTakeaway: '后端财务生产选用友，前端业务增长选我们。如果两边都要，我们可以和用友打通数据，强强联合。',
+    },
     customerReferences: [
       { industry: '制造业', count: '350+', description: '从ERP延伸到全链路数字化' },
       { industry: '零售业', count: '200+', description: '财务业务一体化、全渠道零售' },
@@ -475,6 +629,40 @@ export const competitors: Competitor[] = [
         neutralScript: '如果您的团队英语好、时差能接受，HubSpot的知识库和社区资源确实很丰富。但要想有问题能快速找到人解决，我们的本土服务优势是碾压级的。',
       },
     ],
+    comparisonSummary: {
+      executiveSummary: 'HubSpot作为集客营销（Inbound Marketing）理念的开创者，在海外营销自动化领域有深厚积累，尤其适合面向欧美市场的外贸企业。但对于以国内市场为主的中国企业来说，HubSpot在国内社媒渠道覆盖、本土服务支持、价格性价比方面存在明显短板。我们的平台深度适配国内营销生态，覆盖微信、抖音、小红书等主流渠道，本土团队贴身服务，是国内企业做营销自动化和客户运营的更优选择。',
+      ourStrengths: [
+        { dimension: '国内社媒全覆盖', description: '微信/视频号/小红书/抖音/快手全渠道原生打通', importance: 'critical' },
+        { dimension: '私域运营能力', description: '企微SCRM+社群运营+朋友圈营销，国内私域玩法专家', importance: 'critical' },
+        { dimension: '性价比优势', description: '全功能一体化打包，3年TCO约为HubSpot的1/3', importance: 'high' },
+        { dimension: '本土服务支持', description: '专属客户成功经理，工作日2小时内响应，中文服务', importance: 'high' },
+        { dimension: '国内营销触达', description: '微信模板消息5秒内到达，邮件95%+到达率', importance: 'medium' },
+      ],
+      competitorStrengths: [
+        { dimension: '集客营销方法论', description: 'Inbound Marketing理念的开创者，方法论体系完善', },
+        { dimension: '海外渠道支持', description: 'LinkedIn/Facebook/Google等海外渠道深度集成', },
+        { dimension: '全球社区生态', description: '丰富的海外知识库、社区资源和第三方应用', },
+      ],
+      fitForUs: [
+        '以国内市场为主、需要深耕私域运营的企业',
+        '依赖微信、抖音、小红书等国内社媒渠道的企业',
+        '重视服务响应速度和本土支持的企业',
+        '希望控制成本、避免增购陷阱的成长型企业',
+      ],
+      fitForThem: [
+        '以外贸、跨境业务为主、核心市场在欧美的企业',
+        '团队英语能力强、能接受时差和英文支持的企业',
+        '主要做Google SEO、LinkedIn营销等海外获客的企业',
+      ],
+      keyDecisionPoints: [
+        '您的核心市场在国内还是海外？国内业务占比是否超过70%？',
+        '是否需要对接微信、抖音、小红书等国内社媒渠道做营销？',
+        '是否需要做私域运营、企微社群管理？',
+        '团队英语能力如何？能否接受邮件+时差的海外技术支持？',
+        '是否了解HubSpot的增购模式？预算能否支撑后续的功能升级？',
+      ],
+      quickTakeaway: '做外贸出口选HubSpot，做国内市场选我们。如果内外贸都做，可以考虑双系统并行，各管一块。',
+    },
     customerReferences: [
       { industry: '电商零售', count: '220+', description: '私域运营、全渠道营销场景' },
       { industry: '教育培训', count: '150+', description: '线索孵化、学员转化场景' },
