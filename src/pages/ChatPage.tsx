@@ -54,7 +54,8 @@ import {
 } from '@/utils/competitorAnalyzer';
 import type { GeneratedComparisonScript } from '@/utils/competitorAnalyzer';
 import { getTopRecommendations, DEFAULT_PRODUCT_CATALOG } from '@/utils/recommender';
-import type { LeadGrade, Message } from '@/types';
+import { analyzeIntent, getIntentLevel, getIntentLevelConfig, SIGNAL_CATEGORY_LABELS, aggregateSignals, getIntentRecommendation } from '@/utils/intentAnalyzer';
+import type { LeadGrade, Message, IntentSignal, SignalCategory } from '@/types';
 import ActionInvitePanel from '@/components/action/ActionInvitePanel';
 import type { InviteFormData } from '@/components/action/ActionInvitePanel';
 import CompetitorComparison from '@/components/chat/CompetitorComparison';
@@ -78,6 +79,11 @@ interface ChatMessagePayload {
   industryCaseCompany?: string;
   industryCaseResult?: string;
   industryCaseMetrics?: string[];
+  intentSignals?: IntentSignal[];
+  intentScore?: number;
+  intentScoreChange?: number;
+  intentSummary?: string;
+  intentRecommendation?: string;
   [key: string]: unknown;
 }
 
@@ -125,6 +131,9 @@ export default function ChatPage() {
   const [dialogProgress, setDialogProgress] = useState(0);
   const [currentSuggestedReplies, setCurrentSuggestedReplies] = useState<string[]>([]);
   const [competitorAlert, setCompetitorAlert] = useState<{ name: string; script: string } | null>(null);
+  const [intentSignals, setIntentSignals] = useState<IntentSignal[]>([]);
+  const [intentScore, setIntentScore] = useState(50);
+  const [intentScoreExpanded, setIntentScoreExpanded] = useState(true);
 
   const entryData = useMemo(() => {
     try {
@@ -276,6 +285,8 @@ export default function ChatPage() {
         industryName: leadProfile.industry,
       });
 
+      const intentResult = analyzeIntent(content, intentSignals, intentScore);
+
       setTimeout(() => {
         const engine = getEngine();
         const prevGrade = currentGrade;
@@ -286,6 +297,11 @@ export default function ChatPage() {
         setLeadProfile({ ...newProfile });
         setDialogProgress(engine.getProgress());
         recalculateScore();
+
+        if (intentResult.signals.length > 0) {
+          setIntentSignals((prev) => [...prev, ...intentResult.signals]);
+          setIntentScore(intentResult.intentScore);
+        }
 
         const newMessages: ChatMessage[] = [];
         const newGrade = engine.getLeadProfile().grade;
@@ -351,6 +367,24 @@ export default function ChatPage() {
             timestamp: new Date().toISOString(),
           });
           setCompetitorAlert({ name: comp.name, script: script.fullScript });
+        }
+
+        if (intentResult.signals.length > 0) {
+          newMessages.push({
+            id: `m_intent_${Date.now()}`,
+            leadId: 'lead_current',
+            sender: 'SYSTEM',
+            type: 'INTENT_SIGNAL',
+            content: intentResult.summary,
+            payload: {
+              intentSignals: intentResult.signals,
+              intentScore: intentResult.intentScore,
+              intentScoreChange: intentResult.scoreChange,
+              intentSummary: intentResult.summary,
+              intentRecommendation: intentResult.recommendation,
+            },
+            timestamp: new Date().toISOString(),
+          });
         }
 
         if (newGrade && newGrade !== prevGrade && newGrade !== 'D') {
@@ -466,6 +500,8 @@ export default function ChatPage() {
     setShowInvitePanel(false);
     setCompetitorAlert(null);
     setCurrentSuggestedReplies([]);
+    setIntentSignals([]);
+    setIntentScore(50);
 
     setTimeout(() => {
       const engine = engineRef.current!;
@@ -558,6 +594,81 @@ export default function ChatPage() {
             <Award className="w-4 h-4" />
             <span>线索等级更新为 {msg.payload?.newGrade} 级</span>
             <span className="text-white/80 text-xs">· {msg.payload?.reason}</span>
+          </div>
+        </motion.div>
+      );
+    }
+
+    if (msg.type === 'INTENT_SIGNAL') {
+      const signals = msg.payload?.intentSignals as IntentSignal[] || [];
+      const score = msg.payload?.intentScore as number || 50;
+      const scoreChange = msg.payload?.intentScoreChange as number || 0;
+      const recommendation = msg.payload?.intentRecommendation as string || '';
+      const level = getIntentLevel(score);
+      const levelConfig = getIntentLevelConfig(level);
+      const hasPositive = signals.some(s => s.type === 'POSITIVE');
+      const hasNegative = signals.some(s => s.type === 'NEGATIVE');
+      const signalBg = hasPositive && !hasNegative
+        ? 'from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/20 border-emerald-200 dark:border-emerald-800'
+        : hasNegative && !hasPositive
+        ? 'from-rose-50 to-orange-50 dark:from-rose-950/30 dark:to-orange-950/20 border-rose-200 dark:border-rose-800'
+        : 'from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20 border-amber-200 dark:border-amber-800';
+
+      return (
+        <motion.div key={msg.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex justify-center my-3">
+          <div className={cn('max-w-[85%] w-full rounded-2xl border bg-gradient-to-br p-4 shadow-lg', signalBg)}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shadow-sm text-white', levelConfig.bg)}>
+                  <TrendingUp className="w-4 h-4" />
+                </div>
+                <div>
+                  <h5 className="font-bold text-sm text-slate-800 dark:text-slate-100">购买意愿信号捕捉</h5>
+                  <p className="text-[11px] text-slate-500">{msg.content}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className={cn('inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-white shadow-sm', levelConfig.bg)}>
+                  {levelConfig.label}
+                </span>
+                <span className="text-lg font-black text-slate-700 dark:text-slate-200">{score}</span>
+                <span className={cn('text-xs font-bold', scoreChange > 0 ? 'text-emerald-600' : scoreChange < 0 ? 'text-rose-600' : 'text-slate-500')}>
+                  {scoreChange > 0 ? `+${scoreChange}` : scoreChange}
+                </span>
+              </div>
+            </div>
+            <div className="space-y-2 mb-3">
+              {signals.map((signal) => (
+                <div key={signal.id} className={cn(
+                  'flex items-start gap-2 p-2.5 rounded-lg bg-white/60 dark:bg-slate-800/60',
+                  signal.type === 'POSITIVE' ? 'border-l-4 border-emerald-500' : 'border-l-4 border-rose-500'
+                )}>
+                  <span className={cn(
+                    'mt-0.5 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0',
+                    signal.type === 'POSITIVE' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
+                  )}>
+                    {signal.type === 'POSITIVE' ? '+' : '-'}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className={cn(
+                        'text-[10px] font-bold px-1.5 py-0.5 rounded',
+                        signal.type === 'POSITIVE' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
+                      )}>
+                        {SIGNAL_CATEGORY_LABELS[signal.category]}
+                      </span>
+                      <span className="text-[10px] text-slate-400">关键词「{signal.keyword}」</span>
+                      <span className="text-[10px] text-slate-400 ml-auto">置信度 {Math.round(signal.confidence * 100)}%</span>
+                    </div>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{signal.message}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-start gap-2 p-2.5 rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/20 border border-blue-100 dark:border-blue-900/30">
+              <Lightbulb className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">{recommendation}</p>
+            </div>
           </div>
         </motion.div>
       );
@@ -992,6 +1103,138 @@ export default function ChatPage() {
                 </div>
               </motion.div>
             )}
+
+            {(() => {
+              const level = getIntentLevel(intentScore);
+              const levelConfig = getIntentLevelConfig(level);
+              const { positiveTotal, negativeTotal, byCategory } = aggregateSignals(intentSignals);
+              const signalStats = Object.entries(byCategory)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5);
+              const intentCircumference = 2 * Math.PI * 44;
+              const intentOffset = intentCircumference - (intentScore / 100) * intentCircumference;
+
+              return (
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800 overflow-hidden">
+                  <button onClick={() => setIntentScoreExpanded(!intentScoreExpanded)} className="w-full flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                    <div className="flex items-center gap-2">
+                      <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shadow-sm text-white', levelConfig.bg)}>
+                        <TrendingUp className="w-4 h-4" />
+                      </div>
+                      <div className="text-left">
+                        <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100">购买意愿分值</h4>
+                        <p className="text-xs text-slate-500">实时捕捉对话中的正负向信号</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold text-white shadow-sm', levelConfig.bg)}>
+                        {levelConfig.label}
+                      </span>
+                      {intentScoreExpanded ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
+                    </div>
+                  </button>
+                  <AnimatePresence initial={false}>
+                    {intentScoreExpanded && (
+                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25, ease: 'easeOut' }} className="overflow-hidden">
+                        <div className="px-4 pb-4 pt-1">
+                          <div className="flex items-center gap-4 mb-4">
+                            <div className="relative w-24 h-24 flex-shrink-0">
+                              <svg className="w-24 h-24 -rotate-90" viewBox="0 0 100 100">
+                                <circle cx="50" cy="50" r="44" fill="none" stroke="currentColor" strokeWidth="8" className="text-slate-100 dark:text-slate-700" />
+                                <circle cx="50" cy="50" r="44" fill="none" stroke="url(#intentScoreGradient)" strokeWidth="8" strokeLinecap="round" strokeDasharray={intentCircumference} strokeDashoffset={intentOffset} className="transition-all duration-700 ease-out" />
+                                <defs>
+                                  <linearGradient id="intentScoreGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stopColor="#f43f5e" />
+                                    <stop offset="50%" stopColor="#f59e0b" />
+                                    <stop offset="100%" stopColor="#10b981" />
+                                  </linearGradient>
+                                </defs>
+                              </svg>
+                              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                <span className="text-2xl font-black bg-gradient-to-br from-rose-500 via-amber-500 to-emerald-500 bg-clip-text text-transparent">{intentScore}</span>
+                                <span className="text-[9px] font-semibold text-slate-500 uppercase tracking-wider">/ 100</span>
+                              </div>
+                            </div>
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="inline-flex items-center gap-1 text-[11px] text-slate-500">
+                                  <span className="w-2 h-2 rounded-full bg-emerald-500" />正向信号
+                                </span>
+                                <span className="text-sm font-bold text-emerald-600">{positiveTotal}</span>
+                              </div>
+                              <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
+                                <div className="h-full bg-gradient-to-r from-emerald-400 to-teal-500 transition-all duration-500" style={{ width: `${positiveTotal + negativeTotal > 0 ? (positiveTotal / (positiveTotal + negativeTotal)) * 100 : 50}%` }} />
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="inline-flex items-center gap-1 text-[11px] text-slate-500">
+                                  <span className="w-2 h-2 rounded-full bg-rose-500" />负向信号
+                                </span>
+                                <span className="text-sm font-bold text-rose-600">{negativeTotal}</span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 leading-relaxed pt-1">
+                                {getIntentRecommendation(level, 0)}
+                              </p>
+                            </div>
+                          </div>
+
+                          {signalStats.length > 0 && (
+                            <div className="border-t border-slate-100 dark:border-slate-700 pt-3">
+                              <p className="text-[11px] font-semibold text-slate-500 mb-2 flex items-center gap-1">
+                                <Zap className="w-3 h-3 text-amber-500" />高频信号类别
+                              </p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {signalStats.map(([cat, count]) => {
+                                  const isPositive = intentSignals.find(s => s.category === cat)?.type === 'POSITIVE';
+                                  return (
+                                    <span key={cat} className={cn(
+                                      'inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium',
+                                      isPositive
+                                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                                        : 'bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300'
+                                    )}>
+                                      {SIGNAL_CATEGORY_LABELS[cat as SignalCategory]}
+                                      <span className="font-bold">×{count}</span>
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {intentSignals.length > 0 && (
+                            <div className="border-t border-slate-100 dark:border-slate-700 pt-3 mt-3">
+                              <p className="text-[11px] font-semibold text-slate-500 mb-2 flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-blue-500" />信号捕捉历史
+                              </p>
+                              <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                                {intentSignals.slice(-5).reverse().map((signal) => (
+                                  <div key={signal.id} className={cn(
+                                    'flex items-center gap-1.5 p-1.5 rounded-md text-[10px]',
+                                    signal.type === 'POSITIVE'
+                                      ? 'bg-emerald-50/50 dark:bg-emerald-900/20 border-l-2 border-emerald-500'
+                                      : 'bg-rose-50/50 dark:bg-rose-900/20 border-l-2 border-rose-500'
+                                  )}>
+                                    <span className={cn(
+                                      'w-1.5 h-1.5 rounded-full flex-shrink-0',
+                                      signal.type === 'POSITIVE' ? 'bg-emerald-500' : 'bg-rose-500'
+                                    )} />
+                                    <span className={cn(
+                                      'font-semibold',
+                                      signal.type === 'POSITIVE' ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'
+                                    )}>{SIGNAL_CATEGORY_LABELS[signal.category]}</span>
+                                    <span className="text-slate-400 truncate flex-1">「{signal.keyword}」</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })()}
 
             <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800 p-4">
               <div className="flex items-center gap-2 mb-4">

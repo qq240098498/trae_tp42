@@ -48,7 +48,8 @@ export type MessageType =
   | 'ACTION_INVITE'
   | 'COMPETITOR_COMPARISON'
   | 'GRADE_UPDATE'
-  | 'INDUSTRY_INSIGHT';
+  | 'INDUSTRY_INSIGHT'
+  | 'INTENT_SIGNAL';
 
 export type MessageSender = 'SYSTEM' | 'USER';
 
@@ -206,6 +207,51 @@ export interface DashboardStats {
   convertedRate: number;
   averageResponseTime: number;
 }
+
+export type SignalType = 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL';
+
+export type SignalCategory =
+  | 'PRICE_INQUIRY'
+  | 'IMPLEMENTATION_TIMELINE'
+  | 'DECISION_PROCESS'
+  | 'PRODUCT_DETAIL'
+  | 'COMPETITOR_COMPARISON'
+  | 'SUCCESS_CASE'
+  | 'TRIAL_DEMO'
+  | 'BUDGET_POSITIVE'
+  | 'URGENCY'
+  | 'REJECTION'
+  | 'BUDGET_EXHAUSTED'
+  | 'TIMING_NOT_RIGHT'
+  | 'NO_AUTHORITY'
+  | 'SATISFIED_WITH_CURRENT'
+  | 'COMPETITOR_PREFERENCE'
+  | 'TOO_EXPENSIVE'
+  | 'NEEDS_MORE_TIME';
+
+export interface IntentSignal {
+  id: string;
+  type: SignalType;
+  category: SignalCategory;
+  keyword: string;
+  message: string;
+  confidence: number;
+  weight: number;
+  timestamp: string;
+  messageContent: string;
+}
+
+export interface IntentAnalysisResult {
+  signals: IntentSignal[];
+  intentScore: number;
+  scoreChange: number;
+  summary: string;
+  recommendation: string;
+  positiveCount: number;
+  negativeCount: number;
+}
+
+export type IntentLevel = 'HOT' | 'WARM' | 'COOL' | 'COLD';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 
