@@ -31,22 +31,42 @@ import {
   CheckCircle2,
   Shield,
   Zap,
-  BarChart3,
   Swords,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { products } from '@/data/products';
 import { industries } from '@/data/industries';
+import type { Competitor } from '@/data/competitors';
 import { DialogEngine } from '@/utils/dialogEngine';
 import { evaluateLead } from '@/utils/leadScoring';
-import { detectCompetitors, analyzeCompetitorSentiment } from '@/utils/competitorAnalyzer';
+import {
+  handleCompetitorMention,
+  analyzeCompetitorSentiment,
+  generateComparisonScript,
+} from '@/utils/competitorAnalyzer';
+import type { GeneratedComparisonScript } from '@/utils/competitorAnalyzer';
 import { getTopRecommendations, DEFAULT_PRODUCT_CATALOG } from '@/utils/recommender';
-import type { LeadGrade, Message, MessageType, Lead } from '@/types';
+import type { LeadGrade, Message } from '@/types';
 import ActionInvitePanel from '@/components/action/ActionInvitePanel';
 import type { InviteFormData } from '@/components/action/ActionInvitePanel';
+import CompetitorComparison from '@/components/chat/CompetitorComparison';
+
+interface ChatMessagePayload {
+  competitor?: Competitor;
+  comparisonScript?: GeneratedComparisonScript;
+  opening?: string;
+  newGrade?: LeadGrade;
+  previousGrade?: LeadGrade;
+  reason?: string;
+  product?: typeof products[0];
+  productId?: string;
+  matchScore?: number;
+  [key: string]: unknown;
+}
 
 interface ChatMessage extends Message {
   content: string;
+  payload?: ChatMessagePayload;
 }
 
 const gradeConfig: Record<LeadGrade, { color: string; bg: string; label: string; ring: string }> = {
@@ -205,7 +225,7 @@ export default function ChatPage() {
       setIsTyping(true);
       setCompetitorAlert(null);
 
-      const competitorMatches = detectCompetitors(content);
+      const competitorResult = handleCompetitorMention(content);
 
       setTimeout(() => {
         const engine = engineRef.current;
@@ -230,33 +250,26 @@ export default function ChatPage() {
           });
         }
 
-        if (competitorMatches.length > 0) {
-          const comp = competitorMatches[0];
-          const sentiment = analyzeCompetitorSentiment(content, comp.competitor.name);
+        if (competitorResult.detected && competitorResult.competitors.length > 0) {
+          const comp = competitorResult.competitors[0];
+          const script = competitorResult.scripts[0];
+          const sentiment = analyzeCompetitorSentiment(content, comp.name);
+          const compScript = generateComparisonScript(comp, { sentiment, style: 'balanced' });
+
           newMessages.push({
             id: `m_comp_${Date.now()}`,
             leadId: 'lead_current',
             sender: 'SYSTEM',
             type: 'COMPETITOR_COMPARISON',
-            content: comp.response.acknowledge,
+            content: script.opening,
             payload: {
-              competitor: {
-                id: comp.competitor.id,
-                name: comp.competitor.name,
-                logoUrl: '',
-                keywords: comp.competitor.aliases,
-                positioning: comp.competitor.category,
-                diffPoints: comp.competitor.strengths.slice(0, 3).map((s, i) => ({
-                  dimension: ['核心能力', '服务体验', '性价比'][i] || '差异化',
-                  ourAdvantage: comp.competitor.keyTalkingPoints[i] || s,
-                  competitorWeakness: comp.competitor.weaknesses[i] || '待评估',
-                  script: comp.response.differentiation,
-                })),
-              },
+              competitor: comp,
+              comparisonScript: compScript,
+              opening: script.opening,
             },
             timestamp: new Date().toISOString(),
           });
-          setCompetitorAlert({ name: comp.competitor.name, script: comp.response.fullScript });
+          setCompetitorAlert({ name: comp.name, script: script.fullScript });
         }
 
         if (newGrade && newGrade !== prevGrade && newGrade !== 'D') {
@@ -474,7 +487,10 @@ export default function ChatPage() {
               </div>
               <p className="text-sm text-slate-600 dark:text-slate-400 mb-3 line-clamp-2 leading-relaxed">{p.description}</p>
               <div className="flex flex-wrap gap-1.5 mb-4">
-                {(typeof p.coreFeatures[0] === 'string' ? p.coreFeatures : p.coreFeatures.map((f: any) => f.name || f)).slice(0, 3).map((f: string, i: number) => (
+                {(typeof p.coreFeatures[0] === 'string'
+                  ? p.coreFeatures
+                  : p.coreFeatures.map((f: unknown) => (typeof f === 'object' && f !== null && 'name' in f ? (f as { name: string }).name : String(f)))
+                ).slice(0, 3).map((f: string, i: number) => (
                   <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs">
                     <CheckCircle2 className="w-3 h-3 text-emerald-500" />{f}
                   </span>
@@ -500,42 +516,12 @@ export default function ChatPage() {
 
     if (msg.type === 'COMPETITOR_COMPARISON') {
       const comp = msg.payload?.competitor;
+      const script = msg.payload?.comparisonScript;
+      const opening = msg.payload?.opening || msg.content;
       if (!comp) return null;
       return (
         <motion.div key={msg.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex justify-start mb-4">
-          <div className="max-w-lg w-full">
-            {msg.content && (
-              <div className="mb-2 ml-12">
-                <div className="px-4 py-3 rounded-2xl rounded-tl-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
-                  {msg.content}
-                </div>
-              </div>
-            )}
-            <div className="ml-12 rounded-2xl border border-orange-200 dark:border-orange-800 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/20 overflow-hidden shadow-md">
-              <div className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white">
-                <Swords className="w-4 h-4" />
-                <span className="text-sm font-bold">竞品对比：{comp.name}</span>
-              </div>
-              <div className="p-4 space-y-3">
-                {comp.diffPoints?.slice(0, 3).map((point: any, idx: number) => (
-                  <motion.div key={idx} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 * idx }}
-                    className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
-                    <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">{point.dimension}</div>
-                    <div className="space-y-1.5 text-sm">
-                      <div className="flex items-start gap-2">
-                        <CheckCircle2 className="mt-0.5 w-4 h-4 shrink-0 text-emerald-500" />
-                        <span className="text-slate-700 dark:text-slate-200"><span className="font-medium">我方优势：</span>{point.ourAdvantage}</span>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <TrendingUp className="mt-0.5 w-4 h-4 shrink-0 text-amber-500" />
-                        <span className="text-slate-600 dark:text-slate-400"><span className="font-medium">竞品短板：</span>{point.competitorWeakness}</span>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-          </div>
+          <CompetitorComparison competitor={comp} script={script} opening={opening} />
         </motion.div>
       );
     }
