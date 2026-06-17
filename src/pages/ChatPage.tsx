@@ -238,6 +238,21 @@ export default function ChatPage() {
     ]);
   }, [getEngine]);
 
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const insertToInput = useCallback((text: string) => {
+    setInput((prev) => {
+      if (!prev) return text;
+      if (prev.endsWith('，') || prev.endsWith(',') || prev.endsWith('。') || prev.endsWith('.') || prev.endsWith(' ')) {
+        return prev + text;
+      }
+      return prev + '，' + text;
+    });
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 0);
+  }, []);
+
   const handleSend = useCallback(
     (text?: string) => {
       const content = (text ?? input).trim();
@@ -616,7 +631,7 @@ export default function ChatPage() {
                     <span className="text-xl">{(p.industryIcon as string) || '🏢'}</span>
                     <div>
                       <p className="font-bold text-sm">{(p.industryName as string)}行业专属适配已启用</p>
-                      <p className="text-[10px] text-white/70">后续对话将自动使用行业专业术语和案例</p>
+                      <p className="text-[10px] text-white/70">点击下方术语/痛点/案例可快速填入输入框</p>
                     </div>
                   </div>
                 </div>
@@ -628,9 +643,10 @@ export default function ChatPage() {
                       </p>
                       <div className="flex flex-wrap gap-1">
                         {(p.industryTerms as string[]).map((term, i) => (
-                          <span key={i} className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-[10px] font-medium">
+                          <button key={i} onClick={() => insertToInput(term)}
+                            className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-[10px] font-medium cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors">
                             {term}
-                          </span>
+                          </button>
                         ))}
                       </div>
                     </div>
@@ -642,9 +658,10 @@ export default function ChatPage() {
                       </p>
                       <div className="flex flex-wrap gap-1">
                         {(p.industryPainPoints as string[]).map((pp, i) => (
-                          <span key={i} className="px-2 py-0.5 rounded-md bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 text-[10px] font-medium">
+                          <button key={i} onClick={() => insertToInput(pp)}
+                            className="px-2 py-0.5 rounded-md bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 text-[10px] font-medium cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/50 transition-colors">
                             {pp}
-                          </span>
+                          </button>
                         ))}
                       </div>
                     </div>
@@ -652,15 +669,19 @@ export default function ChatPage() {
                   {p.industryCaseCompany && (
                     <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30">
                       <p className="text-[10px] font-semibold text-amber-800 dark:text-amber-300 mb-1 flex items-center gap-1">
-                        <Trophy className="w-3 h-3 text-amber-500" />标杆案例
+                        <Trophy className="w-3 h-3 text-amber-500" />标杆案例（点击可引用）
                       </p>
-                      <p className="text-[11px] text-slate-700 dark:text-slate-200 font-medium">{p.industryCaseCompany as string}</p>
+                      <button onClick={() => insertToInput(p.industryCaseCompany as string)}
+                        className="text-[11px] text-slate-700 dark:text-slate-200 font-medium text-left hover:text-amber-700 dark:hover:text-amber-300 transition-colors cursor-pointer">
+                        {p.industryCaseCompany as string}
+                      </button>
                       {(p.industryCaseMetrics as string[])?.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1">
                           {(p.industryCaseMetrics as string[]).map((m, i) => (
-                            <span key={i} className="text-[9px] px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 text-amber-700 dark:text-amber-300 font-medium">
+                            <button key={i} onClick={() => insertToInput(m)}
+                              className="text-[9px] px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 text-amber-700 dark:text-amber-300 font-medium cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors">
                               ✓ {m}
-                            </span>
+                            </button>
                           ))}
                         </div>
                       )}
@@ -797,12 +818,12 @@ export default function ChatPage() {
             {!isTyping && currentSuggestedReplies.length > 0 && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-4 ml-12">
                 <p className="text-xs text-slate-400 mb-2 flex items-center gap-1.5">
-                  <Lightbulb className="w-3.5 h-3.5 text-amber-500" />建议回复（点击可快速发送）
+                  <Lightbulb className="w-3.5 h-3.5 text-amber-500" />建议话术（点击可填入输入框）
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {currentSuggestedReplies.map((reply, i) => (
-                    <button key={i} onClick={() => handleSend(reply)}
-                      className="px-3 py-2 rounded-xl text-xs text-left transition-all duration-200 max-w-xs bg-white border border-slate-200 text-slate-600 hover:border-blue-300 hover:text-blue-600 hover:shadow-sm">
+                    <button key={i} onClick={() => insertToInput(reply)}
+                      className="px-3 py-2 rounded-xl text-xs text-left transition-all duration-200 max-w-xs bg-white border border-slate-200 text-slate-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:shadow-sm cursor-pointer">
                       {reply}
                     </button>
                   ))}
@@ -815,7 +836,7 @@ export default function ChatPage() {
 
           <div className="border-t border-slate-200/60 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-4">
             <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm focus-within:ring-2 focus-within:ring-blue-500/30 focus-within:border-blue-400 transition-all">
-              <textarea value={input} onChange={(e) => setInput(e.target.value)}
+              <textarea ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                 placeholder={paused ? '对话已暂停，点击继续培育恢复' : '输入消息... 按 Enter 发送，Shift+Enter 换行'}
                 disabled={paused} rows={2}
@@ -1008,7 +1029,7 @@ export default function ChatPage() {
                     <span className="text-2xl">{adaptedIndustry.icon}</span>
                     <div className="text-white">
                       <h4 className="font-bold text-sm">{adaptedIndustry.name}行业专属适配</h4>
-                      <p className="text-[11px] text-white/80 mt-0.5">专业术语·典型痛点·成功案例</p>
+                      <p className="text-[11px] text-white/80 mt-0.5">点击术语/痛点/案例可快速填入输入框</p>
                     </div>
                   </div>
                 </div>
@@ -1020,9 +1041,10 @@ export default function ChatPage() {
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {adaptedIndustry.terms.slice(0, 4).map((t, i) => (
-                        <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-[10px] font-medium">
+                        <button key={i} onClick={() => insertToInput(t.term.split('（')[0])}
+                          className="inline-flex items-center px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-[10px] font-medium cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors">
                           {t.term.split('（')[0]}
-                        </span>
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -1036,16 +1058,18 @@ export default function ChatPage() {
                       <div className="space-y-2">
                         {industryCases.map((c: IndustryCase, i: number) => (
                           <div key={i} className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30">
-                            <div className="flex items-center justify-between mb-1">
+                            <button onClick={() => insertToInput(c.company)}
+                              className="flex items-center justify-between w-full text-left mb-1 hover:opacity-70 transition-opacity cursor-pointer">
                               <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300">{c.company}</span>
                               <span className="text-[9px] text-amber-600 dark:text-amber-400">{c.industry}</span>
-                            </div>
+                            </button>
                             <p className="text-[10px] text-slate-600 dark:text-slate-300 mb-1.5">{c.result}</p>
                             <div className="flex flex-wrap gap-1">
                               {c.metrics.slice(0, 2).map((m, j) => (
-                                <span key={j} className="text-[9px] px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 text-amber-700 dark:text-amber-300 font-medium">
+                                <button key={j} onClick={() => insertToInput(m)}
+                                  className="text-[9px] px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 text-amber-700 dark:text-amber-300 font-medium cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors">
                                   ✓ {m}
-                                </span>
+                                </button>
                               ))}
                             </div>
                           </div>
@@ -1062,7 +1086,8 @@ export default function ChatPage() {
                       </div>
                       <div className="space-y-1.5">
                         {industryPainPoints.map((p, i) => (
-                          <div key={i} className="flex items-start gap-1.5 p-2 rounded-md bg-orange-50 dark:bg-orange-900/20">
+                          <button key={i} onClick={() => insertToInput(p.name)}
+                            className="flex items-start gap-1.5 p-2 rounded-md bg-orange-50 dark:bg-orange-900/20 w-full text-left hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors cursor-pointer">
                             <span className={cn(
                               'mt-0.5 w-1.5 h-1.5 rounded-full flex-shrink-0',
                               p.severity === 'critical' ? 'bg-red-500' : p.severity === 'high' ? 'bg-orange-500' : 'bg-amber-400'
@@ -1070,7 +1095,7 @@ export default function ChatPage() {
                             <div className="min-w-0 flex-1">
                               <p className="text-[11px] font-medium text-slate-700 dark:text-slate-200 leading-tight">{p.name}</p>
                             </div>
-                          </div>
+                          </button>
                         ))}
                       </div>
                     </div>
