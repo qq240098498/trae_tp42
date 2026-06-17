@@ -1,4 +1,13 @@
 import { Grade, TimelineScoreInput } from './leadScoring';
+import type { Industry } from '@/data/industries';
+import {
+  getIndustryAdapter,
+  generateIndustryGreeting,
+  generateIndustryPainPointQuestion,
+  getPainPointSuggestedResponses,
+  getScenarioSuggestedResponses,
+  detectIndustryFromText,
+} from './industryAdapter';
 
 export type DialogState =
   | 'GREETING'
@@ -13,6 +22,7 @@ export type DialogState =
 
 export interface LeadProfile {
   industry: string;
+  industryId?: string;
   scenario: string;
   painPoints: string[];
   budget: number;
@@ -39,64 +49,75 @@ export interface ProcessResult {
   shouldShowInvitation?: boolean;
   detectedCompetitors?: string[];
   responseMessage?: string;
+  adaptedIndustry?: Industry | null;
 }
 
-const STATE_QUESTIONS: Record<DialogState, StateQuestion> = {
-  GREETING: {
-    state: 'GREETING',
-    question: '您好！我是您的专属智能顾问小鲸，很高兴为您服务。我们专注于为企业提供数字化转型解决方案，请问您怎么称呼？',
-    suggestedResponses: ['您好，我是李总', '你好，请介绍一下你们的产品'],
-    isOptional: false,
-  },
-  ASK_INDUSTRY: {
-    state: 'ASK_INDUSTRY',
-    question: '了解了！为了给您推荐最贴合的方案，请先告诉我，贵公司目前属于哪个行业呢？',
-    suggestedResponses: ['金融/银行', '制造/汽车', '医疗/健康', '电商/零售', '互联网/科技', '政府/央企'],
-    isOptional: false,
-  },
-  ASK_SCENARIO: {
-    state: 'ASK_SCENARIO',
-    question: '感谢！了解了贵公司的行业背景，能请您简单描述一下目前希望通过数字化解决的核心业务场景是什么吗？比如是系统升级、降本增效、还是客户增长？',
-    suggestedResponses: ['系统升级/数字化转型', '降本增效/流程优化', '客户增长/营销获客', '安全合规/风险管控', '数据分析/智能决策'],
-    isOptional: false,
-  },
-  ASK_PAIN_POINTS: {
-    state: 'ASK_PAIN_POINTS',
-    question: '好的，我记下了这个场景。那在这个过程中，您目前遇到的最突出的痛点或挑战有哪些呢？可以多选告诉我们。',
-    suggestedResponses: ['效率低/人工操作多', '数据孤岛/无法打通', '系统老旧/不稳定', '成本高/ROI不清晰', '团队能力不足', '合规压力大'],
-    isOptional: false,
-  },
-  ASK_BUDGET: {
-    state: 'ASK_BUDGET',
-    question: '非常理解这些痛点！为了匹配最合适的产品方案，请问贵公司对此项目大概的预算范围是多少呢？',
-    suggestedResponses: ['10万以下', '10-50万', '50-100万', '100-500万', '500万以上'],
-    isOptional: false,
-  },
-  ASK_TIMELINE: {
-    state: 'ASK_TIMELINE',
-    question: '好的，了解预算了。最后想请教一下，贵公司希望这个项目大概什么时候启动和落地呢？',
-    suggestedResponses: ['非常紧急（1个月内）', '近期规划（1-3个月）', '中期规划（3-6个月）', '长期储备（6个月以上）'],
-    isOptional: false,
-  },
-  RECOMMENDATION: {
-    state: 'RECOMMENDATION',
-    question: '感谢您提供这些宝贵信息！根据您的情况，我已经为您匹配了最适合的产品方案，请查看右侧的推荐卡片。您对哪个方案比较感兴趣，想进一步了解详情吗？',
-    suggestedResponses: ['查看方案详情', '申请产品演示', '对比竞品差异', '预约顾问沟通'],
-    isOptional: true,
-  },
-  INVITATION: {
-    state: 'INVITATION',
-    question: '根据您的情况，我们非常希望能为您提供进一步的服务。请问您更倾向于以下哪种方式深入了解呢？',
-    suggestedResponses: ['预约商务会议', '申请产品演示', '开通免费试用'],
-    isOptional: true,
-  },
-  CLOSING: {
-    state: 'CLOSING',
-    question: '感谢您的信任！我们已将您的需求记录在案，专属顾问将在1个工作日内与您联系确认。请保持电话畅通，期待为您服务！如果有其他问题，随时可以告诉我。',
-    suggestedResponses: ['好的，期待联系', '还有其他问题', '修改需求信息'],
-    isOptional: true,
-  },
-};
+function buildStateQuestions(industry: Industry | null, leadName?: string): Record<DialogState, StateQuestion> {
+  return {
+    GREETING: {
+      state: 'GREETING',
+      question: industry
+        ? generateIndustryGreeting(industry, { name: leadName })
+        : '您好！我是您的专属智能顾问小鲸，很高兴为您服务。我们专注于为企业提供数字化转型解决方案，请问您怎么称呼？',
+      suggestedResponses: ['您好，我是李总', '你好，请介绍一下你们的产品'],
+      isOptional: false,
+    },
+    ASK_INDUSTRY: {
+      state: 'ASK_INDUSTRY',
+      question: '了解了！为了给您推荐最贴合的方案，请先告诉我，贵公司目前属于哪个行业呢？',
+      suggestedResponses: ['金融/银行', '制造/汽车', '医疗/健康', '电商/零售', '互联网/科技', '物流/供应链'],
+      isOptional: false,
+    },
+    ASK_SCENARIO: {
+      state: 'ASK_SCENARIO',
+      question: industry
+        ? `感谢！了解到贵公司是${industry.name}行业，这是一个非常有发展潜力的领域。能请您简单描述一下目前希望通过数字化解决的核心业务场景是什么吗？比如${industry.scenarios.slice(0, 2).join('、')}等？`
+        : '感谢！了解了贵公司的行业背景，能请您简单描述一下目前希望通过数字化解决的核心业务场景是什么吗？比如是系统升级、降本增效、还是客户增长？',
+      suggestedResponses: getScenarioSuggestedResponses(industry),
+      isOptional: false,
+    },
+    ASK_PAIN_POINTS: {
+      state: 'ASK_PAIN_POINTS',
+      question: generateIndustryPainPointQuestion(industry),
+      suggestedResponses: getPainPointSuggestedResponses(industry),
+      isOptional: false,
+    },
+    ASK_BUDGET: {
+      state: 'ASK_BUDGET',
+      question: '非常理解这些痛点！为了匹配最合适的产品方案，请问贵公司对此项目大概的预算范围是多少呢？',
+      suggestedResponses: ['10万以下', '10-50万', '50-100万', '100-500万', '500万以上'],
+      isOptional: false,
+    },
+    ASK_TIMELINE: {
+      state: 'ASK_TIMELINE',
+      question: '好的，了解预算了。最后想请教一下，贵公司希望这个项目大概什么时候启动和落地呢？',
+      suggestedResponses: ['非常紧急（1个月内）', '近期规划（1-3个月）', '中期规划（3-6个月）', '长期储备（6个月以上）'],
+      isOptional: false,
+    },
+    RECOMMENDATION: {
+      state: 'RECOMMENDATION',
+      question: industry
+        ? `感谢您提供这些宝贵信息！结合您${industry.name}行业的特点和具体需求，我已经为您匹配了最适合的产品方案，这些方案在${industry.scenarios[0] || '业务增长'}方面有非常成熟的行业实践。请查看右侧的推荐卡片，您对哪个方案比较感兴趣，想进一步了解详情吗？`
+        : '感谢您提供这些宝贵信息！根据您的情况，我已经为您匹配了最适合的产品方案，请查看右侧的推荐卡片。您对哪个方案比较感兴趣，想进一步了解详情吗？',
+      suggestedResponses: ['查看方案详情', '申请产品演示', '对比竞品差异', '预约顾问沟通'],
+      isOptional: true,
+    },
+    INVITATION: {
+      state: 'INVITATION',
+      question: '根据您的情况，我们非常希望能为您提供进一步的服务。请问您更倾向于以下哪种方式深入了解呢？',
+      suggestedResponses: ['预约商务会议', '申请产品演示', '开通免费试用'],
+      isOptional: true,
+    },
+    CLOSING: {
+      state: 'CLOSING',
+      question: industry
+        ? `感谢您的信任！针对您${industry.name}行业的需求，我们已将相关的行业解决方案和标杆案例记录在案，专属顾问将在1个工作日内与您联系确认。请保持电话畅通，期待为您服务！如果有其他问题，随时可以告诉我。`
+        : '感谢您的信任！我们已将您的需求记录在案，专属顾问将在1个工作日内与您联系确认。请保持电话畅通，期待为您服务！如果有其他问题，随时可以告诉我。',
+      suggestedResponses: ['好的，期待联系', '还有其他问题', '修改需求信息'],
+      isOptional: true,
+    },
+  };
+}
 
 const STATE_TRANSITION_ORDER: DialogState[] = [
   'GREETING',
@@ -114,10 +135,13 @@ export class DialogEngine {
   private currentState: DialogState;
   private leadProfile: LeadProfile;
   private stateHistory: DialogState[];
+  private leadName?: string;
+  private adaptedIndustry: Industry | null = null;
 
-  constructor(initialState: DialogState = 'GREETING') {
+  constructor(initialState: DialogState = 'GREETING', leadName?: string) {
     this.currentState = initialState;
     this.stateHistory = [initialState];
+    this.leadName = leadName;
     this.leadProfile = {
       industry: '',
       scenario: '',
@@ -132,6 +156,17 @@ export class DialogEngine {
     };
   }
 
+  private refreshAdaptedIndustry(): void {
+    const industryName = this.leadProfile.industry;
+    const industryId = this.leadProfile.industryId;
+    this.adaptedIndustry = getIndustryAdapter(industryId || industryName);
+  }
+
+  private getStateQuestions(): Record<DialogState, StateQuestion> {
+    this.refreshAdaptedIndustry();
+    return buildStateQuestions(this.adaptedIndustry, this.leadName);
+  }
+
   getCurrentState(): DialogState {
     return this.currentState;
   }
@@ -141,11 +176,17 @@ export class DialogEngine {
   }
 
   getCurrentQuestion(): StateQuestion {
-    return { ...STATE_QUESTIONS[this.currentState] };
+    const questions = this.getStateQuestions();
+    return { ...questions[this.currentState] };
   }
 
   getStateHistory(): DialogState[] {
     return [...this.stateHistory];
+  }
+
+  getAdaptedIndustry(): Industry | null {
+    this.refreshAdaptedIndustry();
+    return this.adaptedIndustry;
   }
 
   getProgress(): number {
@@ -165,19 +206,26 @@ export class DialogEngine {
 
     Object.assign(this.leadProfile, extraction.profile);
 
+    if (this.leadProfile.industry) {
+      this.refreshAdaptedIndustry();
+    }
+
     const nextState = this.determineNextState();
     this.transitionTo(nextState);
 
     const shouldShowRecommendation = nextState === 'RECOMMENDATION';
     const shouldShowInvitation = nextState === 'INVITATION';
 
+    const questions = this.getStateQuestions();
+
     const result: ProcessResult = {
       extractedInfo: extraction.profile,
-      nextQuestion: STATE_QUESTIONS[nextState] ? { ...STATE_QUESTIONS[nextState] } : null,
+      nextQuestion: questions[nextState] ? { ...questions[nextState] } : null,
       nextState,
       shouldShowRecommendation,
       shouldShowInvitation,
       detectedCompetitors: extraction.competitors.length > 0 ? extraction.competitors : undefined,
+      adaptedIndustry: this.adaptedIndustry,
     };
 
     if (extraction.acknowledgment) {
@@ -188,7 +236,8 @@ export class DialogEngine {
   }
 
   skipCurrentState(): ProcessResult {
-    const currentOptional = STATE_QUESTIONS[this.currentState]?.isOptional;
+    const questions = this.getStateQuestions();
+    const currentOptional = questions[this.currentState]?.isOptional;
 
     let nextState: DialogState;
 
@@ -200,11 +249,13 @@ export class DialogEngine {
     }
 
     this.transitionTo(nextState);
+    const nextQuestions = this.getStateQuestions();
 
     return {
       extractedInfo: {},
-      nextQuestion: STATE_QUESTIONS[nextState] ? { ...STATE_QUESTIONS[nextState] } : null,
+      nextQuestion: nextQuestions[nextState] ? { ...nextQuestions[nextState] } : null,
       nextState,
+      adaptedIndustry: this.adaptedIndustry,
     };
   }
 
@@ -288,10 +339,15 @@ export class DialogEngine {
         break;
 
       case 'ASK_INDUSTRY': {
-        const industry = this.parseIndustry(answer);
-        if (industry) {
-          profile.industry = industry;
-          acknowledgment = `好的，了解了贵公司是${industry}行业，这是一个非常有发展潜力的领域！`;
+        const detectedIndustry = detectIndustryFromText(answer);
+        const industryName = detectedIndustry?.name || this.parseIndustry(answer);
+        if (industryName) {
+          profile.industry = industryName;
+          if (detectedIndustry) {
+            profile.industryId = detectedIndustry.id;
+          }
+          const industryDesc = detectedIndustry?.description || `${industryName}行业`;
+          acknowledgment = `好的，了解了贵公司是${industryName}行业！${detectedIndustry ? `这是一个非常有发展潜力的领域，我们服务了多家${detectedIndustry.cases[0]?.industry || industryName}企业，有丰富的行业经验。` : '这是一个非常有发展潜力的领域！'}`;
         }
         break;
       }
@@ -616,8 +672,13 @@ export class DialogEngine {
   }
 }
 
-export function createDialogEngine(): DialogEngine {
-  return new DialogEngine('GREETING');
+export function createDialogEngine(leadName?: string): DialogEngine {
+  return new DialogEngine('GREETING', leadName);
 }
 
-export { STATE_QUESTIONS, STATE_TRANSITION_ORDER };
+function getStaticStateQuestions(): Record<DialogState, StateQuestion> {
+  return buildStateQuestions(null);
+}
+
+export { STATE_TRANSITION_ORDER };
+export const STATE_QUESTIONS = getStaticStateQuestions();

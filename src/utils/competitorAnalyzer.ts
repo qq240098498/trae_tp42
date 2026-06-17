@@ -1,5 +1,11 @@
 import type { Competitor, ComparisonMetric, ComparisonSummary } from '@/data/competitors';
 import { competitors, detectCompetitorsFromText, findCompetitorByKeyword } from '@/data/competitors';
+import type { Industry } from '@/data/industries';
+import {
+  getIndustryAdapter,
+  getIndustryCases,
+  getTopIndustryPainPoints,
+} from './industryAdapter';
 
 export interface ScriptGenerationOptions {
   sentiment?: 'positive' | 'negative' | 'neutral';
@@ -7,6 +13,8 @@ export interface ScriptGenerationOptions {
   style?: 'aggressive' | 'balanced' | 'humble';
   includeEvidence?: boolean;
   maxDimensions?: number;
+  industryId?: string;
+  industryName?: string;
 }
 
 export interface GeneratedComparisonScript {
@@ -25,6 +33,13 @@ export interface GeneratedComparisonScript {
   competitorName: string;
   competitorId: string;
   summary: ComparisonSummary;
+  industryCases?: {
+    company: string;
+    result: string;
+    metrics: string[];
+  }[];
+  industryTerms?: string[];
+  adaptedIndustry?: Industry | null;
 }
 
 export function analyzeCompetitorSentiment(
@@ -89,7 +104,23 @@ export function generateComparisonScript(
     style = 'balanced',
     includeEvidence = true,
     maxDimensions = 4,
+    industryId,
+    industryName,
   } = options;
+
+  const adaptedIndustry: Industry | null = industryId || industryName
+    ? getIndustryAdapter(industryId || industryName)
+    : null;
+
+  const industryCases = adaptedIndustry ? getIndustryCases(adaptedIndustry, 2) : [];
+  const industryTerms = adaptedIndustry
+    ? adaptedIndustry.terms.slice(0, 4).map((t) => t.term.split('（')[0])
+    : [];
+  const industryPainPoints = adaptedIndustry
+    ? getTopIndustryPainPoints(adaptedIndustry, 3).map((p) => p.name)
+    : [];
+
+  const industryTag = adaptedIndustry ? `特别是在${adaptedIndustry.name}行业，` : '';
 
   let opening = '';
   switch (sentiment) {
@@ -100,7 +131,9 @@ export function generateComparisonScript(
       opening = `非常理解您的感受，${competitor.name}在某些方面可能确实没有达到您的预期。其实每家产品都有自己的定位和专长，${competitor.name}的定位是"${competitor.positioning}"，可能在某些场景下和您的需求匹配度不够高。让我从几个维度为您做个客观对比，方便您参考选择：`;
       break;
     default:
-      opening = `您提到的${competitor.name}确实是${competitor.category}领域有影响力的厂商，定位是"${competitor.positioning}"，主要服务于${competitor.targetCustomer}这类客户群体。我们理解您会多方对比考量，这是非常明智的做法。下面我从功能覆盖、性能指标、价格区间、服务保障这四个核心维度，为您做一个客观的对比分析：`;
+      opening = adaptedIndustry
+        ? `您提到的${competitor.name}确实是${competitor.category}领域有影响力的厂商，定位是"${competitor.positioning}"，主要服务于${competitor.targetCustomer}这类客户群体。${industryTag}我们服务了多家${adaptedIndustry.name}企业，对您提到的${industryPainPoints.slice(0, 2).join('、')}等行业痛点有非常成熟的解决方案。下面我从功能覆盖、性能指标、价格区间、服务保障这四个核心维度，为您做一个客观的对比分析：`
+        : `您提到的${competitor.name}确实是${competitor.category}领域有影响力的厂商，定位是"${competitor.positioning}"，主要服务于${competitor.targetCustomer}这类客户群体。我们理解您会多方对比考量，这是非常明智的做法。下面我从功能覆盖、性能指标、价格区间、服务保障这四个核心维度，为您做一个客观的对比分析：`;
   }
 
   let dimensions = [...competitor.comparisonMatrix];
@@ -163,16 +196,20 @@ export function generateComparisonScript(
     }
   });
 
+  const industryCaseIntro = industryCases.length > 0
+    ? `\n\n🏆 ${adaptedIndustry?.name || ''}行业成功案例：${industryCases.map((c) => `${c.company}（${c.metrics[0]}）`).join('、')}。这些同行业客户的实践经验，也能为您提供直接参考。`
+    : '';
+
   let closing = '';
   switch (style) {
     case 'humble':
-      closing = `以上就是我们和${competitor.name}的一些客观对比。其实${competitor.name}也是一家非常值得尊敬的公司，每家产品都有自己的优势领域。关键还是看哪款产品更能匹配您的实际需求。如果您方便的话，我可以根据您的具体业务场景，为您做更有针对性的方案演示，您看什么时候合适呢？`;
+      closing = `以上就是我们和${competitor.name}的一些客观对比。其实${competitor.name}也是一家非常值得尊敬的公司，每家产品都有自己的优势领域。关键还是看哪款产品更能匹配您的实际需求。${adaptedIndustry ? `特别是针对${adaptedIndustry.name}行业，我们有专门的行业解决方案团队。` : ''}如果您方便的话，我可以根据您的具体业务场景，为您做更有针对性的方案演示，您看什么时候合适呢？${industryCaseIntro}`;
       break;
     case 'aggressive':
-      closing = `综合来看，在${topAdvantages.join('、')}等方面，我们都有明显的优势。更重要的是，我们有${competitor.customerReferences?.map(c => `${c.count}${c.industry}客户`).join('、')}的成功实践，产品经过了大量客户的实战检验。如果您感兴趣，我可以马上为您安排产品演示和客户案例分享，帮您做更深入的评估。`;
+      closing = `综合来看，在${topAdvantages.join('、')}等方面，我们都有明显的优势。更重要的是，我们有${competitor.customerReferences?.map(c => `${c.count}${c.industry}客户`).join('、')}的成功实践${adaptedIndustry ? `，其中${adaptedIndustry.name}行业就服务了${industryCases[0]?.company || '多家标杆企业'}` : ''}，产品经过了大量客户的实战检验。如果您感兴趣，我可以马上为您安排产品演示和客户案例分享，帮您做更深入的评估。${industryCaseIntro}`;
       break;
     default:
-      closing = `总结一下，${competitor.name}在它的优势领域确实表现出色，而我们的核心优势在于${keyTalkingPoints.slice(0, 2).join('；')}。选择哪款产品，关键还是看哪个更匹配您的业务现状和发展规划。我可以为您详细展示一下具体的对比案例和客户证言，或者安排一次针对性的产品演示，方便您做更深入的评估，您看哪种方式更方便呢？`;
+      closing = `总结一下，${competitor.name}在它的优势领域确实表现出色，而我们的核心优势在于${keyTalkingPoints.slice(0, 2).join('；')}。选择哪款产品，关键还是看哪个更匹配您的业务现状和发展规划。${adaptedIndustry ? `针对${adaptedIndustry.name}行业，我们已经沉淀了成熟的行业最佳实践。` : ''}我可以为您详细展示一下具体的对比案例和客户证言，或者安排一次针对性的产品演示，方便您做更深入的评估，您看哪种方式更方便呢？${industryCaseIntro}`;
   }
 
   const fullScript = [
@@ -192,11 +229,15 @@ export function generateComparisonScript(
     competitorName: competitor.name,
     competitorId: competitor.id,
     summary: competitor.comparisonSummary,
+    industryCases: industryCases.length > 0 ? industryCases : undefined,
+    industryTerms: industryTerms.length > 0 ? industryTerms : undefined,
+    adaptedIndustry,
   };
 }
 
 export function handleCompetitorMention(
-  userMessage: string
+  userMessage: string,
+  options: Omit<ScriptGenerationOptions, 'sentiment'> = {}
 ): {
   detected: boolean;
   competitors: Competitor[];
@@ -210,7 +251,7 @@ export function handleCompetitorMention(
 
   const scripts = detectedCompetitors.map((comp) => {
     const sentiment = analyzeCompetitorSentiment(userMessage, comp.name);
-    return generateComparisonScript(comp, { sentiment, style: 'balanced' });
+    return generateComparisonScript(comp, { ...options, sentiment, style: 'balanced' });
   });
 
   return {

@@ -32,11 +32,19 @@ import {
   Shield,
   Zap,
   Swords,
+  BookOpen,
+  Trophy,
+  AlertTriangle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { products } from '@/data/products';
-import { industries } from '@/data/industries';
+import { industries, type Industry, type IndustryCase } from '@/data/industries';
 import type { Competitor } from '@/data/competitors';
+import {
+  getIndustryAdapter,
+  getTopIndustryPainPoints,
+  getIndustryCases,
+} from '@/utils/industryAdapter';
 import { DialogEngine } from '@/utils/dialogEngine';
 import { evaluateLead } from '@/utils/leadScoring';
 import {
@@ -92,7 +100,7 @@ export default function ChatPage() {
   const [showInvitePanel, setShowInvitePanel] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const engineRef = useRef<DialogEngine>(new DialogEngine('GREETING'));
+  const engineRef = useRef<DialogEngine | null>(null);
   const [currentGrade, setCurrentGrade] = useState<LeadGrade>('D');
   const [score, setScore] = useState(0);
   const [scoreBreakdown, setScoreBreakdown] = useState([
@@ -101,7 +109,10 @@ export default function ChatPage() {
     { label: '预算匹配', value: 0, max: 25, icon: DollarSign },
     { label: '决策时间', value: 0, max: 20, icon: Clock },
   ]);
-  const [leadProfile, setLeadProfile] = useState(engineRef.current.getLeadProfile());
+  const [leadProfile, setLeadProfile] = useState<ReturnType<DialogEngine['getLeadProfile']>>(() => {
+    const tempEngine = new DialogEngine('GREETING');
+    return tempEngine.getLeadProfile();
+  });
   const [dialogProgress, setDialogProgress] = useState(0);
   const [currentSuggestedReplies, setCurrentSuggestedReplies] = useState<string[]>([]);
   const [competitorAlert, setCompetitorAlert] = useState<{ name: string; script: string } | null>(null);
@@ -119,8 +130,19 @@ export default function ChatPage() {
   const leadCompany = entryData?.company || '贵公司';
   const leadEmail = entryData?.email || '';
 
+  if (!engineRef.current) {
+    engineRef.current = new DialogEngine('GREETING', leadName !== '客户' ? leadName : undefined);
+  }
+
+  const getEngine = useCallback((): DialogEngine => {
+    if (!engineRef.current) {
+      engineRef.current = new DialogEngine('GREETING', leadName !== '客户' ? leadName : undefined);
+    }
+    return engineRef.current;
+  }, [leadName]);
+
   const recommendedProducts = useMemo((): { id: string; name: string; description: string; imageUrl: string; priceFrom: number; priceTo: number; matchScore: number; matchReasons: string[] }[] => {
-    const profile = engineRef.current.getLeadProfile();
+    const profile = getEngine().getLeadProfile();
     if (!profile.industry && !profile.scenario) return products.slice(0, 3).map((p) => ({ ...p, matchScore: 85, matchReasons: [] }));
     const recInput = {
       industry: profile.industry || '',
@@ -153,7 +175,7 @@ export default function ChatPage() {
   }, [leadProfile]);
 
   useEffect(() => {
-    const engine = engineRef.current;
+    const engine = getEngine();
     const question = engine.getCurrentQuestion();
     const initialMsg: ChatMessage = {
       id: `m_init_${Date.now()}`,
@@ -185,7 +207,7 @@ export default function ChatPage() {
   }, [messages, isTyping]);
 
   const recalculateScore = useCallback(() => {
-    const profile = engineRef.current.getLeadProfile();
+    const profile = getEngine().getLeadProfile();
     const result = evaluateLead(
       profile.industry || '',
       profile.scenario || '',
@@ -205,7 +227,7 @@ export default function ChatPage() {
       { label: '预算匹配', value: Math.round(result.budgetScore * 0.25), max: 25, icon: DollarSign },
       { label: '决策时间', value: Math.round(result.timelineScore * 0.20), max: 20, icon: Clock },
     ]);
-  }, []);
+  }, [getEngine]);
 
   const handleSend = useCallback(
     (text?: string) => {
@@ -225,10 +247,13 @@ export default function ChatPage() {
       setIsTyping(true);
       setCompetitorAlert(null);
 
-      const competitorResult = handleCompetitorMention(content);
+      const competitorResult = handleCompetitorMention(content, {
+        industryId: leadProfile.industryId,
+        industryName: leadProfile.industry,
+      });
 
       setTimeout(() => {
-        const engine = engineRef.current;
+        const engine = getEngine();
         const prevGrade = currentGrade;
         const result = engine.getNextQuestion(content);
         const newProfile = engine.getLeadProfile();
@@ -361,11 +386,12 @@ export default function ChatPage() {
         setIsTyping(false);
       }, 1200 + Math.random() * 800);
     },
-    [input, paused, currentGrade, recalculateScore]
+    [input, paused, currentGrade, recalculateScore, getEngine, leadProfile]
   );
 
   const handleReset = () => {
-    engineRef.current = new DialogEngine('GREETING');
+    engineRef.current = new DialogEngine('GREETING', leadName !== '客户' ? leadName : undefined);
+    const newEngine = engineRef.current;
     setMessages([]);
     setCurrentGrade('D');
     setScore(0);
@@ -375,14 +401,14 @@ export default function ChatPage() {
       { label: '预算匹配', value: 0, max: 25, icon: DollarSign },
       { label: '决策时间', value: 0, max: 20, icon: Clock },
     ]);
-    setLeadProfile(engineRef.current.getLeadProfile());
+    setLeadProfile(newEngine.getLeadProfile());
     setDialogProgress(0);
     setShowInvitePanel(false);
     setCompetitorAlert(null);
     setCurrentSuggestedReplies([]);
 
     setTimeout(() => {
-      const engine = engineRef.current;
+      const engine = engineRef.current!;
       const question = engine.getCurrentQuestion();
       const greet = `您好！欢迎来到 LeadNurture 智能销售助手，我是您的专属 AI 顾问小睿 👋`;
       setMessages([
@@ -446,6 +472,20 @@ export default function ChatPage() {
     const map: Record<string, string> = { urgent: '非常紧急', short: '近期规划', medium: '中期规划', long: '长期储备' };
     return map[t] || t;
   }, [leadProfile]);
+
+  const adaptedIndustry = useMemo<Industry | null>(() => {
+    const p = leadProfile;
+    if (!p.industry && !p.industryId) return null;
+    return getIndustryAdapter(p.industryId || p.industry);
+  }, [leadProfile]);
+
+  const industryPainPoints = useMemo(() => {
+    return getTopIndustryPainPoints(adaptedIndustry, 4);
+  }, [adaptedIndustry]);
+
+  const industryCases = useMemo(() => {
+    return getIndustryCases(adaptedIndustry, 2);
+  }, [adaptedIndustry]);
 
   const renderMessage = (msg: ChatMessage) => {
     const isUser = msg.sender === 'USER';
@@ -836,6 +876,84 @@ export default function ChatPage() {
                 className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800 p-4">
                 <ActionInvitePanel onConfirm={handleInviteConfirm} onCancel={() => setShowInvitePanel(false)} />
               </motion.div>
+            )}
+
+            {adaptedIndustry && (
+              <div className={cn('rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden', 'bg-white dark:bg-slate-800')}>
+                <div className={cn('px-4 py-3 bg-gradient-to-r', adaptedIndustry.color)}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">{adaptedIndustry.icon}</span>
+                    <div className="text-white">
+                      <h4 className="font-bold text-sm">{adaptedIndustry.name}行业专属适配</h4>
+                      <p className="text-[11px] text-white/80 mt-0.5">专业术语·典型痛点·成功案例</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4 space-y-4">
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <BookOpen className="w-3.5 h-3.5 text-indigo-500" />
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">行业术语</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {adaptedIndustry.terms.slice(0, 4).map((t, i) => (
+                        <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-[10px] font-medium">
+                          {t.term.split('（')[0]}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {industryCases.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <Trophy className="w-3.5 h-3.5 text-amber-500" />
+                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">同行业成功案例</span>
+                      </div>
+                      <div className="space-y-2">
+                        {industryCases.map((c: IndustryCase, i: number) => (
+                          <div key={i} className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300">{c.company}</span>
+                              <span className="text-[9px] text-amber-600 dark:text-amber-400">{c.industry}</span>
+                            </div>
+                            <p className="text-[10px] text-slate-600 dark:text-slate-300 mb-1.5">{c.result}</p>
+                            <div className="flex flex-wrap gap-1">
+                              {c.metrics.slice(0, 2).map((m, j) => (
+                                <span key={j} className="text-[9px] px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 text-amber-700 dark:text-amber-300 font-medium">
+                                  ✓ {m}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {industryPainPoints.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <AlertTriangle className="w-3.5 h-3.5 text-orange-500" />
+                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">行业典型痛点</span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {industryPainPoints.map((p, i) => (
+                          <div key={i} className="flex items-start gap-1.5 p-2 rounded-md bg-orange-50 dark:bg-orange-900/20">
+                            <span className={cn(
+                              'mt-0.5 w-1.5 h-1.5 rounded-full flex-shrink-0',
+                              p.severity === 'critical' ? 'bg-red-500' : p.severity === 'high' ? 'bg-orange-500' : 'bg-amber-400'
+                            )} />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[11px] font-medium text-slate-700 dark:text-slate-200 leading-tight">{p.name}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
 
             {leadProfile.painPoints && leadProfile.painPoints.length > 0 && (
