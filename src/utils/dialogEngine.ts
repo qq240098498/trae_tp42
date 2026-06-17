@@ -346,8 +346,12 @@ export class DialogEngine {
           if (detectedIndustry) {
             profile.industryId = detectedIndustry.id;
           }
-          const industryDesc = detectedIndustry?.description || `${industryName}行业`;
-          acknowledgment = `好的，了解了贵公司是${industryName}行业！${detectedIndustry ? `这是一个非常有发展潜力的领域，我们服务了多家${detectedIndustry.cases[0]?.industry || industryName}企业，有丰富的行业经验。` : '这是一个非常有发展潜力的领域！'}`;
+          if (detectedIndustry) {
+            const caseRef = detectedIndustry.cases[0];
+            acknowledgment = `好的，了解到贵公司是${industryName}行业！我们在这个领域有深入的服务经验，${caseRef ? `比如${caseRef.company}使用我们的方案后，${caseRef.metrics[0]}。` : '已服务了多家同行业标杆企业。'}接下来我会结合${industryName}行业的特点为您做针对性推荐。`;
+          } else {
+            acknowledgment = `好的，了解了贵公司是${industryName}行业！这是一个非常有发展潜力的领域！`;
+          }
         }
         break;
       }
@@ -356,7 +360,15 @@ export class DialogEngine {
         const scenario = this.parseScenario(answer);
         if (scenario) {
           profile.scenario = scenario;
-          acknowledgment = `${scenario}是当前企业非常关注的重点方向，我们在这方面有丰富的成功经验。`;
+          const ind = this.adaptedIndustry;
+          if (ind) {
+            const matchedScenario = ind.scenarios.find((s) => scenario.includes(s) || s.includes(scenario));
+            acknowledgment = matchedScenario
+              ? `${scenario}确实是${ind.name}行业当前非常关注的核心方向！我们在这方面有丰富的落地经验，${ind.cases[0] ? `像${ind.cases[0].company}就是通过我们的方案在${matchedScenario}方面取得了${ind.cases[0].metrics[0]}。` : ''}`
+              : `${scenario}是当前${ind.name}企业非常关注的重点方向，我们在这方面有丰富的成功经验。`;
+          } else {
+            acknowledgment = `${scenario}是当前企业非常关注的重点方向，我们在这方面有丰富的成功经验。`;
+          }
         }
         break;
       }
@@ -365,7 +377,17 @@ export class DialogEngine {
         const painPoints = this.parsePainPoints(answer);
         if (painPoints.length > 0) {
           profile.painPoints = painPoints;
-          acknowledgment = `这${painPoints.length}个痛点确实是很多企业都会遇到的共性挑战，我们的产品方案能够针对性地逐一解决。`;
+          const ind = this.adaptedIndustry;
+          if (ind) {
+            const matchedPain = ind.painPoints.find((p) =>
+              painPoints.some((pp) => p.name.includes(pp) || pp.includes(p.name.split('/')[0]))
+            );
+            acknowledgment = matchedPain
+              ? `您提到的${matchedPain.name}确实是${ind.name}行业非常普遍的痛点，严重程度很高。我们的方案专门针对这类问题做了深度优化，${ind.cases[0] ? `${ind.cases[0].company}在使用后成功解决了同样的挑战，${ind.cases[0].metrics[0]}。` : '已帮助多家同行业客户成功解决。'}`
+              : `这${painPoints.length}个痛点确实是${ind.name}行业很多企业都会遇到的共性挑战，我们的产品方案能够针对性地逐一解决。`;
+          } else {
+            acknowledgment = `这${painPoints.length}个痛点确实是很多企业都会遇到的共性挑战，我们的产品方案能够针对性地逐一解决。`;
+          }
         }
         break;
       }
@@ -376,7 +398,12 @@ export class DialogEngine {
           profile.budget = budget;
           profile.budgetRange = range;
           const budgetText = this.formatBudget(budget);
-          acknowledgment = `了解了，${budgetText}的预算范围，我们有多个非常匹配的产品方案供您选择。`;
+          const ind = this.adaptedIndustry;
+          if (ind) {
+            acknowledgment = `了解了，${budgetText}的预算范围在${ind.name}行业中有多个非常匹配的方案可选。${ind.cases[0] ? `像${ind.cases[0].company}最初也是类似的预算起步，最终实现了${ind.cases[0].metrics[0]}。` : ''}`;
+          } else {
+            acknowledgment = `了解了，${budgetText}的预算范围，我们有多个非常匹配的产品方案供您选择。`;
+          }
         }
         break;
       }
@@ -387,18 +414,31 @@ export class DialogEngine {
           profile.timeline = timeline;
           if (days > 0) profile.timelineDays = days;
           const urgencyText = timeline === 'urgent' ? '我们会优先安排资源对接' : '我们会根据您的节奏推进';
-          acknowledgment = `好的，${urgencyText}，确保项目按计划推进。`;
+          const ind = this.adaptedIndustry;
+          if (ind) {
+            acknowledgment = `好的，${urgencyText}，确保项目按计划推进。${timeline === 'urgent' ? `${ind.name}行业的项目我们通常${ind.cases[0] ? `在${ind.cases[0].company}的项目中` : ''}能快速部署上线。` : ''}`;
+          } else {
+            acknowledgment = `好的，${urgencyText}，确保项目按计划推进。`;
+          }
         }
         break;
       }
 
-      case 'RECOMMENDATION':
-        acknowledgment = '好的，我来为您详细介绍！';
+      case 'RECOMMENDATION': {
+        const ind = this.adaptedIndustry;
+        acknowledgment = ind
+          ? `好的，我为您详细介绍！这套方案在${ind.name}行业已有${ind.cases.length}个成功案例，效果经过实战验证。`
+          : '好的，我来为您详细介绍！';
         break;
+      }
 
-      case 'INVITATION':
-        acknowledgment = '太好了，我来为您安排！';
+      case 'INVITATION': {
+        const ind = this.adaptedIndustry;
+        acknowledgment = ind
+          ? `我们为${ind.name}行业配备了专属的解决方案团队，可以针对性地为您演示。`
+          : '期待与您进一步沟通！';
         break;
+      }
 
       case 'CLOSING':
         acknowledgment = '没问题，随时为您服务！';

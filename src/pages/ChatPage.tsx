@@ -69,6 +69,15 @@ interface ChatMessagePayload {
   product?: typeof products[0];
   productId?: string;
   matchScore?: number;
+  industryId?: string;
+  industryName?: string;
+  industryIcon?: string;
+  industryColor?: string;
+  industryTerms?: string[];
+  industryPainPoints?: string[];
+  industryCaseCompany?: string;
+  industryCaseResult?: string;
+  industryCaseMetrics?: string[];
   [key: string]: unknown;
 }
 
@@ -255,6 +264,8 @@ export default function ChatPage() {
       setTimeout(() => {
         const engine = getEngine();
         const prevGrade = currentGrade;
+        const prevIndustryId = leadProfile.industryId;
+        const prevIndustryName = leadProfile.industry;
         const result = engine.getNextQuestion(content);
         const newProfile = engine.getLeadProfile();
         setLeadProfile({ ...newProfile });
@@ -275,11 +286,41 @@ export default function ChatPage() {
           });
         }
 
+        const justDetectedIndustry = newProfile.industry && (!prevIndustryName || prevIndustryName !== newProfile.industry);
+        if (justDetectedIndustry && result.adaptedIndustry) {
+          const ind = result.adaptedIndustry;
+          const topCase = ind.cases[0];
+          newMessages.push({
+            id: `m_industry_${Date.now()}`,
+            leadId: 'lead_current',
+            sender: 'SYSTEM',
+            type: 'INDUSTRY_INSIGHT',
+            content: `已识别行业：${ind.name}`,
+            payload: {
+              industryId: ind.id,
+              industryName: ind.name,
+              industryIcon: ind.icon,
+              industryColor: ind.color,
+              industryTerms: ind.terms.slice(0, 4).map((t) => t.term.split('（')[0]),
+              industryPainPoints: ind.painPoints.slice(0, 3).map((p) => p.name),
+              industryCaseCompany: topCase?.company,
+              industryCaseResult: topCase?.result,
+              industryCaseMetrics: topCase?.metrics.slice(0, 2),
+            },
+            timestamp: new Date().toISOString(),
+          });
+        }
+
         if (competitorResult.detected && competitorResult.competitors.length > 0) {
           const comp = competitorResult.competitors[0];
           const script = competitorResult.scripts[0];
           const sentiment = analyzeCompetitorSentiment(content, comp.name);
-          const compScript = generateComparisonScript(comp, { sentiment, style: 'balanced' });
+          const compScript = generateComparisonScript(comp, {
+            sentiment,
+            style: 'balanced',
+            industryId: newProfile.industryId,
+            industryName: newProfile.industry,
+          });
 
           newMessages.push({
             id: `m_comp_${Date.now()}`,
@@ -360,12 +401,16 @@ export default function ChatPage() {
         }
 
         if (result.shouldShowInvitation) {
+          const ind = result.adaptedIndustry;
+          const inviteContent = ind
+            ? `针对${ind.name}行业，我们配备了专属的解决方案团队，可以更有针对性地为您服务。请问您更倾向于以下哪种方式深入了解呢？`
+            : '根据您的情况，我们非常希望能为您提供进一步的服务。请问您更倾向于以下哪种方式深入了解呢？';
           newMessages.push({
             id: `m_invite_${Date.now()}`,
             leadId: 'lead_current',
             sender: 'SYSTEM',
             type: 'ACTION_INVITE',
-            content: '根据您的情况，我们非常希望能为您提供进一步的服务。请问您更倾向于以下哪种方式深入了解呢？',
+            content: inviteContent,
             timestamp: new Date().toISOString(),
           });
           setCurrentSuggestedReplies(['预约商务会议', '申请产品演示', '开通免费试用']);
@@ -554,6 +599,82 @@ export default function ChatPage() {
       );
     }
 
+    if (msg.type === 'INDUSTRY_INSIGHT') {
+      const p = msg.payload;
+      if (!p) return null;
+      return (
+        <motion.div key={msg.id} initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+          className="flex justify-start mb-4">
+          <div className="flex gap-3 max-w-[85%]">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-teal-500 via-emerald-500 to-blue-500 flex-shrink-0 flex items-center justify-center shadow-md text-white">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <div className="w-full">
+              <div className="rounded-2xl rounded-tl-md overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm bg-white dark:bg-slate-800">
+                <div className={cn('px-4 py-2.5 bg-gradient-to-r', (p.industryColor as string) || 'from-blue-500 to-indigo-600')}>
+                  <div className="flex items-center gap-2 text-white">
+                    <span className="text-xl">{(p.industryIcon as string) || '🏢'}</span>
+                    <div>
+                      <p className="font-bold text-sm">{(p.industryName as string)}行业专属适配已启用</p>
+                      <p className="text-[10px] text-white/70">后续对话将自动使用行业专业术语和案例</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-3.5 space-y-3">
+                  {(p.industryTerms as string[])?.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1">
+                        <BookOpen className="w-3 h-3 text-indigo-500" />行业术语
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {(p.industryTerms as string[]).map((term, i) => (
+                          <span key={i} className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-[10px] font-medium">
+                            {term}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {(p.industryPainPoints as string[])?.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3 text-orange-500" />典型痛点
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {(p.industryPainPoints as string[]).map((pp, i) => (
+                          <span key={i} className="px-2 py-0.5 rounded-md bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 text-[10px] font-medium">
+                            {pp}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {p.industryCaseCompany && (
+                    <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30">
+                      <p className="text-[10px] font-semibold text-amber-800 dark:text-amber-300 mb-1 flex items-center gap-1">
+                        <Trophy className="w-3 h-3 text-amber-500" />标杆案例
+                      </p>
+                      <p className="text-[11px] text-slate-700 dark:text-slate-200 font-medium">{p.industryCaseCompany as string}</p>
+                      {(p.industryCaseMetrics as string[])?.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {(p.industryCaseMetrics as string[]).map((m, i) => (
+                            <span key={i} className="text-[9px] px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 text-amber-700 dark:text-amber-300 font-medium">
+                              ✓ {m}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1.5 px-1">{formatTime(msg.timestamp)}</p>
+            </div>
+          </div>
+        </motion.div>
+      );
+    }
+
     if (msg.type === 'COMPETITOR_COMPARISON') {
       const comp = msg.payload?.competitor;
       const script = msg.payload?.comparisonScript;
@@ -627,7 +748,9 @@ export default function ChatPage() {
             </div>
             <div className="flex items-center gap-3 text-xs text-slate-500 mt-0.5">
               <span className="flex items-center gap-1"><Building2 className="w-3 h-3" />{leadCompany}</span>
-              <span className="flex items-center gap-1"><Tag className="w-3 h-3" />{industryName}行业</span>
+              <span className={cn('flex items-center gap-1', adaptedIndustry && 'text-emerald-600 dark:text-emerald-400 font-medium')}>
+                <Tag className="w-3 h-3" />{adaptedIndustry ? `${adaptedIndustry.icon} ${adaptedIndustry.name}行业` : `${industryName}行业`}
+              </span>
               <span className="flex items-center gap-1"><Clock className="w-3 h-3" />培育进度 {dialogProgress}%</span>
             </div>
           </div>

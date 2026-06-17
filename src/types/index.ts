@@ -47,7 +47,8 @@ export type MessageType =
   | 'PRODUCT_CARD'
   | 'ACTION_INVITE'
   | 'COMPETITOR_COMPARISON'
-  | 'GRADE_UPDATE';
+  | 'GRADE_UPDATE'
+  | 'INDUSTRY_INSIGHT';
 
 export type MessageSender = 'SYSTEM' | 'USER';
 
