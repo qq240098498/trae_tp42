@@ -3,6 +3,8 @@ import Layout from '@/components/Layout';
 import EntryPage from '@/pages/EntryPage';
 import ChatPage from '@/pages/ChatPage';
 import DashboardPage from '@/pages/DashboardPage';
+import ProductsPage from '@/pages/ProductsPage';
+import SettingsPage from '@/pages/SettingsPage';
 
 export default function App() {
   return (
@@ -13,6 +15,8 @@ export default function App() {
           <Route path="/entry" element={<EntryPage />} />
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/products" element={<ProductsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
         </Route>
       </Routes>
     </Router>
